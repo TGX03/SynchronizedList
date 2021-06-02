@@ -4,6 +4,12 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * A list wrapper supposed to enable a list to be read from in parallel,
+ * but still ensures only one write-operation occurs at the same time and also no reads are executed during writing.
+ * Writes have priority, meaning if there are enough write operation waiting, no read operation will get through
+ * @param <E> The type of elements in this list
+ */
 public class SynchronizedList<E> implements List<E> {
 
     private final List<E> list;
@@ -187,17 +193,24 @@ public class SynchronizedList<E> implements List<E> {
         throw new IllegalStateException("Not implemented");
     }
 
+    /**
+     * This method makes this thread wait if another thread is currently writing to this list
+     * or other threads are waiting to write
+     */
     private void readerWait() {
         while (waitingWriters.get() != 0 || writing.get()) {
-            Thread.yield();
+            Thread.yield(); // I'm still thinking about a better way as yielding still wastes lots of CPU
         }
         readers.incrementAndGet();
     }
 
+    /**
+     * This method makes the current thread wait until no other thread is reading or writing from this list
+     */
     private void writerWait() {
         waitingWriters.incrementAndGet();
         while (!writing.compareAndSet(false, true)) {
-            Thread.yield();
+            Thread.yield(); // I'm still thinking about a better way as yielding still wastes lots of CPU
         }
         waitingWriters.decrementAndGet();
     }
