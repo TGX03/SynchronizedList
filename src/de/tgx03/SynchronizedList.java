@@ -1,7 +1,6 @@
 package de.tgx03;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -14,8 +13,7 @@ public class SynchronizedList<E> implements List<E> {
 
     private final List<E> list;
     private final AtomicInteger readers = new AtomicInteger(0);
-    private final AtomicBoolean writing = new AtomicBoolean(false);
-    private final AtomicInteger waitingWriters = new AtomicInteger(0);
+    private boolean writer = false;
 
     public SynchronizedList(List<E> list) {
         this.list = list;
@@ -67,18 +65,18 @@ public class SynchronizedList<E> implements List<E> {
     }
 
     @Override
-    public boolean add(E e) {
+    public synchronized boolean add(E e) {
         writerWait();
         boolean result = list.add(e);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
     @Override
-    public boolean remove(Object o) {
+    public synchronized boolean remove(Object o) {
         writerWait();
         boolean result = list.remove(o);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
@@ -91,42 +89,42 @@ public class SynchronizedList<E> implements List<E> {
     }
 
     @Override
-    public boolean addAll(Collection<? extends E> c) {
+    public synchronized boolean addAll(Collection<? extends E> c) {
         writerWait();
         boolean result = list.addAll(c);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
     @Override
-    public boolean addAll(int index, Collection<? extends E> c) {
+    public synchronized boolean addAll(int index, Collection<? extends E> c) {
         writerWait();
         boolean result = list.addAll(index, c);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
     @Override
-    public boolean removeAll(Collection<?> c) {
+    public synchronized boolean removeAll(Collection<?> c) {
         writerWait();
         boolean result = list.removeAll(c);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
     @Override
-    public boolean retainAll(Collection<?> c) {
+    public synchronized boolean retainAll(Collection<?> c) {
         writerWait();
         boolean result = list.removeAll(c);
-        writing.lazySet(false);
+       writer = false;
         return result;
     }
 
     @Override
-    public void clear() {
+    public synchronized void clear() {
         writerWait();
         list.clear();
-        writing.lazySet(false);
+        writer = false;
     }
 
     @Override
@@ -138,25 +136,25 @@ public class SynchronizedList<E> implements List<E> {
     }
 
     @Override
-    public E set(int index, E element) {
+    public synchronized E set(int index, E element) {
         writerWait();
         E result = list.set(index, element);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
     @Override
-    public void add(int index, E element) {
+    public synchronized void add(int index, E element) {
         writerWait();
         list.add(index, element);
-        writing.lazySet(false);
+        writer = false;
     }
 
     @Override
-    public E remove(int index) {
+    public synchronized E remove(int index) {
         writerWait();
         E result = list.remove(index);
-        writing.lazySet(false);
+        writer = false;
         return result;
     }
 
@@ -198,21 +196,17 @@ public class SynchronizedList<E> implements List<E> {
      * or other threads are waiting to write
      */
     private void readerWait() {
-        while (waitingWriters.get() != 0 || writing.get()) {
+        while (writer) {
             Thread.yield(); // I'm still thinking about a better way as yielding still wastes lots of CPU
         }
         readers.incrementAndGet();
     }
 
-    /**
-     * This method makes the current thread wait until no other thread is reading or writing from this list
-     */
-    private void writerWait() {
-        waitingWriters.incrementAndGet();
-        while (!writing.compareAndSet(false, true)) {
-            Thread.yield(); // I'm still thinking about a better way as yielding still wastes lots of CPU
+    private synchronized void writerWait() {
+        writer = true;
+        while (readers.get() > 0) {
+            Thread.yield();
         }
-        waitingWriters.decrementAndGet();
     }
 
     private class Iterator implements ListIterator<E> {
@@ -278,24 +272,24 @@ public class SynchronizedList<E> implements List<E> {
         }
 
         @Override
-        public void remove() {
+        public synchronized void remove() {
             writerWait();
             list.remove(current.get());
-            writing.lazySet(false);
+            writer = false;
         }
 
         @Override
-        public void set(E e) {
+        public synchronized void set(E e) {
             writerWait();
             list.set(current.get(), e);
-            writing.lazySet(false);
+            writer = false;
         }
 
         @Override
-        public void add(E e) {
+        public synchronized void add(E e) {
             writerWait();
             list.add(current.get() + 1, e);
-            writing.lazySet(false);
+            writer = false;
         }
     }
 }
