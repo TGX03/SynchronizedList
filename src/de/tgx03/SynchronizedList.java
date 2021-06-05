@@ -1,11 +1,15 @@
 package de.tgx03;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A list wrapper supposed to enable a list to be read from in parallel,
  * but still ensures only one write-operation occurs at the same time and also no reads are executed during writing.
+ *
  * @param <E> The type of elements in this list
  */
 public class SynchronizedList<E> implements List<E> {
@@ -115,7 +119,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean retainAll(Collection<?> c) {
         writerWait();
         boolean result = list.removeAll(c);
-       writer = false;
+        writer = false;
         return result;
     }
 
