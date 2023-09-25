@@ -16,7 +16,7 @@ public class SynchronizedList<E> implements List<E> {
 
     private final List<E> list;
     private final AtomicInteger readers = new AtomicInteger(0);
-    private boolean writer = false;
+    private volatile boolean writer = false;
 
     public SynchronizedList(List<E> list) {
         this.list = list;
@@ -26,7 +26,7 @@ public class SynchronizedList<E> implements List<E> {
     public int size() {
         readerWait();
         int result = list.size();
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -34,7 +34,7 @@ public class SynchronizedList<E> implements List<E> {
     public boolean isEmpty() {
         readerWait();
         boolean result = list.isEmpty();
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -42,7 +42,7 @@ public class SynchronizedList<E> implements List<E> {
     public boolean contains(Object o) {
         readerWait();
         boolean result = list.contains(o);
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -55,7 +55,7 @@ public class SynchronizedList<E> implements List<E> {
     public Object[] toArray() {
         readerWait();
         Object[] result = list.toArray();
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -63,7 +63,7 @@ public class SynchronizedList<E> implements List<E> {
     public <T> T[] toArray(T[] a) {
         readerWait();
         T[] result = list.toArray(a);
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -71,7 +71,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean add(E e) {
         writerWait();
         boolean result = list.add(e);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -79,7 +79,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean remove(Object o) {
         writerWait();
         boolean result = list.remove(o);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -87,7 +87,7 @@ public class SynchronizedList<E> implements List<E> {
     public boolean containsAll(Collection<?> c) {
         readerWait();
         boolean result = list.containsAll(c);
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -95,7 +95,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean addAll(Collection<? extends E> c) {
         writerWait();
         boolean result = list.addAll(c);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -103,7 +103,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean addAll(int index, Collection<? extends E> c) {
         writerWait();
         boolean result = list.addAll(index, c);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -111,7 +111,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean removeAll(Collection<?> c) {
         writerWait();
         boolean result = list.removeAll(c);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -119,7 +119,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized boolean retainAll(Collection<?> c) {
         writerWait();
         boolean result = list.retainAll(c);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -127,14 +127,14 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized void clear() {
         writerWait();
         list.clear();
-        writer = false;
+        writerLeave();
     }
 
     @Override
     public E get(int index) {
         readerWait();
         E result = list.get(index);
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -142,7 +142,7 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized E set(int index, E element) {
         writerWait();
         E result = list.set(index, element);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -150,14 +150,14 @@ public class SynchronizedList<E> implements List<E> {
     public synchronized void add(int index, E element) {
         writerWait();
         list.add(index, element);
-        writer = false;
+        writerLeave();
     }
 
     @Override
     public synchronized E remove(int index) {
         writerWait();
         E result = list.remove(index);
-        writer = false;
+        writerLeave();
         return result;
     }
 
@@ -165,7 +165,7 @@ public class SynchronizedList<E> implements List<E> {
     public int indexOf(Object o) {
         readerWait();
         int result = list.indexOf(o);
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -173,7 +173,7 @@ public class SynchronizedList<E> implements List<E> {
     public int lastIndexOf(Object o) {
         readerWait();
         int result = list.lastIndexOf(o);
-        readers.decrementAndGet();
+        readerLeave();
         return result;
     }
 
@@ -200,16 +200,36 @@ public class SynchronizedList<E> implements List<E> {
      */
     private void readerWait() {
         while (writer) {
-            Thread.yield(); // I'm still thinking about a better way as yielding still wastes lots of CPU
+            try {
+                synchronized (this) {
+                    wait();
+                }
+            } catch (InterruptedException ignored) {
+            }
         }
         readers.incrementAndGet();
+    }
+
+    private void readerLeave() {
+        int count = readers.decrementAndGet();
+        if (count == 0 && writer) synchronized (this) {
+            notifyAll();
+        }
     }
 
     private synchronized void writerWait() {
         writer = true;
         while (readers.get() > 0) {
-            Thread.yield();
+            try {
+                wait();
+            } catch (InterruptedException ignored) {
+            }
         }
+    }
+
+    private synchronized void writerLeave() {
+        writer = false;
+        notifyAll();
     }
 
     private class Iterator implements ListIterator<E> {
@@ -220,7 +240,7 @@ public class SynchronizedList<E> implements List<E> {
         public boolean hasNext() {
             readerWait();
             boolean result = list.size() > current.get();
-            readers.decrementAndGet();
+            readerLeave();
             return result;
         }
 
@@ -230,10 +250,10 @@ public class SynchronizedList<E> implements List<E> {
             int position = current.getAndIncrement();
             if (list.size() > position) {
                 E result = list.get(position);
-                readers.decrementAndGet();
+                readerLeave();
                 return result;
             } else {
-                readers.decrementAndGet();
+                readerLeave();
                 throw new NoSuchElementException("No next element");
             }
         }
@@ -242,7 +262,7 @@ public class SynchronizedList<E> implements List<E> {
         public boolean hasPrevious() {
             readerWait();
             boolean result = list.size() > 0 && current.get() > 0;
-            readers.decrementAndGet();
+            readerLeave();
             return result;
         }
 
@@ -260,7 +280,7 @@ public class SynchronizedList<E> implements List<E> {
                 int last = list.size() - 1;
                 result = list.get(last);
             }
-            readers.decrementAndGet();
+            readerLeave();
             return result;
         }
 
@@ -278,21 +298,21 @@ public class SynchronizedList<E> implements List<E> {
         public synchronized void remove() {
             writerWait();
             list.remove(current.get());
-            writer = false;
+            writerLeave();
         }
 
         @Override
         public synchronized void set(E e) {
             writerWait();
             list.set(current.get(), e);
-            writer = false;
+            writerLeave();
         }
 
         @Override
         public synchronized void add(E e) {
             writerWait();
             list.add(current.get() + 1, e);
-            writer = false;
+            writerLeave();
         }
     }
 }
