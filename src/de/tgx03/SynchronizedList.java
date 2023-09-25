@@ -202,7 +202,7 @@ public class SynchronizedList<E> implements List<E> {
 		while (writer) {
 			try {
 				synchronized (this) {
-					wait();
+					if (writer) wait();
 				}
 			} catch (InterruptedException ignored) {
 			}
