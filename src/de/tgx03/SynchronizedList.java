@@ -14,10 +14,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class SynchronizedList<E> implements List<E> {
 
+	/**
+	 * The list made synchronized by this class.
+	 */
 	private final List<E> list;
+	/**
+	 * The counter of how many threads are currently reading from this list in some way.
+	 */
 	private final AtomicInteger readers = new AtomicInteger(0);
+	/**
+	 * Whether a writer thread is currently trying to access this list.
+	 */
 	private volatile boolean writer = false;
 
+	/**
+	 * Creates a new synchronized list from another list.
+	 *
+	 * @param list The list to make synchronized.
+	 */
 	public SynchronizedList(List<E> list) {
 		this.list = list;
 	}
@@ -210,6 +224,10 @@ public class SynchronizedList<E> implements List<E> {
 		readers.incrementAndGet();
 	}
 
+	/**
+	 * This method decrements the counter and also informs any potential waiting writer thread
+	 * in case the counter reached zero.
+	 */
 	private void readerLeave() {
 		int count = readers.decrementAndGet();
 		if (count == 0 && writer) synchronized (this) {
@@ -217,6 +235,9 @@ public class SynchronizedList<E> implements List<E> {
 		}
 	}
 
+	/**
+	 * Makes a writing thread wait until no more threads are reading from this list.
+	 */
 	private synchronized void writerWait() {
 		writer = true;
 		while (readers.get() > 0) {
@@ -227,6 +248,9 @@ public class SynchronizedList<E> implements List<E> {
 		}
 	}
 
+	/**
+	 * Allows reading threads to access this list again.
+	 */
 	private synchronized void writerLeave() {
 		writer = false;
 		notifyAll();
