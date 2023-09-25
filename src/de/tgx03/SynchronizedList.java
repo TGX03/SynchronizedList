@@ -86,7 +86,7 @@ public class SynchronizedList<E> implements List<E> {
     @Override
     public boolean containsAll(Collection<?> c) {
         readerWait();
-        boolean result = list.contains(c);
+        boolean result = list.containsAll(c);
         readers.decrementAndGet();
         return result;
     }
@@ -118,7 +118,7 @@ public class SynchronizedList<E> implements List<E> {
     @Override
     public synchronized boolean retainAll(Collection<?> c) {
         writerWait();
-        boolean result = list.removeAll(c);
+        boolean result = list.retainAll(c);
         writer = false;
         return result;
     }
