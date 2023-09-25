@@ -191,7 +191,7 @@ public class SynchronizedList<E> implements List<E> {
 
     @Override
     public List<E> subList(int fromIndex, int toIndex) {
-        throw new IllegalStateException("Not implemented");
+        return new SynchronizedList<>(list.subList(fromIndex, toIndex));
     }
 
     /**
