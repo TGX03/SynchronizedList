@@ -100,6 +100,7 @@ public class SynchronizedList<E> implements List<E> {
 	@Override
 	public boolean containsAll(Collection<?> c) {
 		readerWait();
+		//noinspection SlowListContainsAll It's likely the underlying implementation is already as performant as possible, making any additional tricks rather pointless.
 		boolean result = list.containsAll(c);
 		readerLeave();
 		return result;
@@ -285,7 +286,7 @@ public class SynchronizedList<E> implements List<E> {
 		@Override
 		public boolean hasPrevious() {
 			readerWait();
-			boolean result = list.size() > 0 && current.get() > 0;
+			boolean result = !list.isEmpty() && current.get() > 0;
 			readerLeave();
 			return result;
 		}
@@ -295,9 +296,9 @@ public class SynchronizedList<E> implements List<E> {
 			readerWait();
 			int position = current.getAndDecrement();
 			E result;
-			if (list.size() > 0 && position >= 0 && position < list.size()) {
+			if (!list.isEmpty() && position >= 0 && position < list.size()) {
 				result = list.get(position);
-			} else if (list.size() == 0 || position < 0) {
+			} else if (list.isEmpty() || position < 0) {
 				readers.decrementAndGet();
 				throw new NoSuchElementException("No previous element");
 			} else {
